@@ -1,0 +1,25 @@
+<!-- templates/includes/sidebar.html -->
+<div class="hidden md:flex w-64 bg-gray-800 flex-col">
+  <div class="h-16 flex items-center px-4 bg-gray-900">
+    <i class="fas fa-server text-blue-400 mr-2"></i>
+    <span class="text-white font-semibold text-lg">FishTank</span>
+  </div>
+  <nav class="px-4 py-6 flex-1 space-y-4">
+    <a href="/ui/dashboard" class="flex items-center px-2 py-2 rounded-md group {{ 'bg-gray-900 text-white' if active_page == 'dashboard' else 'text-gray-300 hover:text-white hover:bg-gray-700' }}">
+      <i class="fas fa-tachometer-alt mr-3"></i> Dashboard
+    </a>
+    <a href="/ui/nodes" class="flex items-center px-2 py-2 rounded-md group {{ 'bg-gray-900 text-white' if active_page == 'nodes' else 'text-gray-300 hover:text-white hover:bg-gray-700' }}">
+      <i class="fas fa-microchip mr-3"></i> Nodes
+    </a>
+    <a href="/ui/sensors" class="flex items-center px-2 py-2 rounded-md group {{ 'bg-gray-900 text-white' if active_page == 'sensors' else 'text-gray-300 hover:text-white hover:bg-gray-700' }}">
+      <i class="fas fa-thermometer-half mr-3"></i> Sensors
+    </a>
+
+    <a href="/ui/config" class="flex items-center px-2 py-2 rounded-md group {{ 'bg-gray-900 text-white' if active_page == 'config' else 'text-gray-300 hover:text-white hover:bg-gray-700' }}">
+      <i class="fas fa-cog mr-3"></i> Config
+    </a>
+    <a href="/auth/logout" class="mt-6 flex items-center px-2 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-md group">
+      <i class="fas fa-sign-out-alt mr-3 text-gray-400"></i> Logout
+    </a>
+  </nav>
+</div>

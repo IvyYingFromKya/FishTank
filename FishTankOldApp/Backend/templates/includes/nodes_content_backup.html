@@ -1,0 +1,48 @@
+<!-- templates/includes/nodes_content.html -->
+<div class="flex justify-between items-center mb-4">
+  <h1 class="text-2xl font-bold text-gray-800">Node Management</h1>
+  <a href="/nodes/create" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">+ Add New Node</a>
+</div>
+<p class="text-gray-600 mb-6">Here you can manage your Raspberry Pi nodes.</p>
+
+{% if nodes|length>0 %}
+<div class="overflow-x-auto bg-white rounded-lg shadow">
+  <table class="min-w-full text-sm text-left whitespace-nowrap">
+    <thead class="text-xs uppercase bg-gray-100 text-gray-700">
+      <tr>
+        <th class="px-6 py-3">Node ID</th>
+        <th class="px-6 py-3">Location</th>
+        <th class="px-6 py-3">Sensors</th>
+        <th class="px-6 py-3">Last Update</th>
+        <th class="px-6 py-3">Status</th>
+        <th class="px-6 py-3">Actions</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-200">
+      {% for node in nodes %}
+      <tr>
+        <td class="px-6 py-4 font-medium text-blue-600 hover:underline">{{ node.node_id }}</td>
+        <td class="px-6 py-4">{{ node.location or '—' }}</td>
+        <td class="px-6 py-4">{{ node.sensor_count }}</td>
+        <td class="px-6 py-4">{{ node.last_update or 'N/A' }}</td>
+        <td class="px-6 py-4">
+          <span class="px-2 py-1 rounded-full text-xs font-semibold
+            {% if node.status == 'Active' %} bg-green-100 text-green-700
+            {% elif node.status == 'Warning' %} bg-yellow-100 text-yellow-700
+            {% elif node.status == 'Critical' %} bg-red-100 text-red-700
+            {% else %} bg-gray-200 text-gray-700 {% endif %}">
+            {{ node.status }}
+          </span>
+        </td>
+        <td class="px-6 py-4 space-x-3">
+          <a href="/nodes/{{ node.node_id }}" class="text-blue-600 hover:underline">View</a>
+          <a href="/nodes/{{ node.node_id }}/edit" class="text-gray-600 hover:underline">Edit</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  <p class="text-center text-gray-500 mt-12">🚫 No nodes found!</p>
+{% endif %}

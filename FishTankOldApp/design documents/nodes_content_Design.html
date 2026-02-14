@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nodes Database Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .status-active {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+        .status-inactive {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+        .status-maintenance {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+        }
+        .status-unknown {
+            background-color: rgba(156, 163, 175, 0.1);
+            color: #9ca3af;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* Animation for status indicator */
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+        .pulse-active {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">Nodes Management</h1>
+                <p class="text-gray-600 mt-2">View and manage all network nodes in your infrastructure</p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                <div class="relative w-full md:w-64">
+                    <input type="text" placeholder="Search nodes..." class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                </div>
+                <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                    <i class="fas fa-plus"></i>
+                    <span>Add Node</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-xl shadow p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500">Total Nodes</p>
+                        <h3 class="text-2xl font-bold mt-1">24</h3>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-full">
+                        <i class="fas fa-server text-blue-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500">Active</p>
+                        <h3 class="text-2xl font-bold mt-1">18</h3>
+                    </div>
+                    <div class="bg-green-100 p-3 rounded-full">
+                        <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500">Inactive</p>
+                        <h3 class="text-2xl font-bold mt-1">3</h3>
+                    </div>
+                    <div class="bg-red-100 p-3 rounded-full">
+                        <i class="fas fa-times-circle text-red-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500">Maintenance</p>
+                        <h3 class="text-2xl font-bold mt-1">3</h3>
+                    </div>
+                    <div class="bg-yellow-100 p-3 rounded-full">
+                        <i class="fas fa-tools text-yellow-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Table Container -->
+        <div class="bg-white rounded-xl shadow overflow-hidden">
+            <!-- Table Header -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center p-4 border-b border-gray-200">
+                <div class="flex items-center mb-4 md:mb-0">
+                    <div class="mr-4">
+                        <label for="status-filter" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select id="status-filter" class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="all">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="maintenance">Maintenance</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="location-filter" class="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                        <select id="location-filter" class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="all">All Locations</option>
+                            <option value="ny">New York</option>
+                            <option value="sf">San Francisco</option>
+                            <option value="lon">London</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1">
+                        <i class="fas fa-download"></i>
+                        <span>Export</span>
+                    </button>
+                    <button class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-1">
+                        <i class="fas fa-filter"></i>
+                        <span>Filters</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mapped Drive</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="nodes-table-body">
+                        <!-- Data will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700">
+                            Showing <span class="font-medium">1</span> to <span class="font-medium">10</span> of <span class="font-medium">24</span> results
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                            <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                <span class="sr-only">Previous</span>
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                            <a href="#" aria-current="page" class="z-10 bg-blue-50 border-blue-500 text-blue-600 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
+                                1
+                            </a>
+                            <a href="#" class="bg-white border-gray-300 text-gray-500 hover:bg-gray-50 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
+                                2
+                            </a>
+                            <a href="#" class="bg-white border-gray-300 text-gray-500 hover:bg-gray-50 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
+                                3
+                            </a>
+                            <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                <span class="sr-only">Next</span>
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample data for the nodes table
+        const nodesData = [
+            { id: 1, name: 'Web Server 1', location: 'New York', ip_address: '192.168.1.10', mapped_drive_path: '\\ny-server\web', status: 'active' },
+            { id: 2, name: 'Database Server', location: 'San Francisco', ip_address: '192.168.1.20', mapped_drive_path: '\\sf-server\db', status: 'active' },
+            { id: 3, name: 'File Server', location: 'London', ip_address: '192.168.1.30', mapped_drive_path: '\\lon-server\files', status: 'active' },
+            { id: 4, name: 'Backup Server', location: 'New York', ip_address: '192.168.1.40', mapped_drive_path: '\\ny-server\backup', status: 'inactive' },
+            { id: 5, name: 'Mail Server', location: 'San Francisco', ip_address: '192.168.1.50', mapped_drive_path: '\\sf-server\mail', status: 'maintenance' },
+            { id: 6, name: 'Dev Server', location: 'London', ip_address: '192.168.1.60', mapped_drive_path: '\\lon-server\dev', status: 'active' },
+            { id: 7, name: 'Test Server', location: 'New York', ip_address: '192.168.1.70', mapped_drive_path: '\\ny-server\test', status: 'active' },
+            { id: 8, name: 'Staging Server', location: 'San Francisco', ip_address: '192.168.1.80', mapped_drive_path: '\\sf-server\stage', status: 'inactive' },
+            { id: 9, name: 'Production Server', location: 'London', ip_address: '192.168.1.90', mapped_drive_path: '\\lon-server\prod', status: 'active' },
+            { id: 10, name: 'Monitoring Server', location: 'New York', ip_address: '192.168.1.100', mapped_drive_path: '\\ny-server\monitor', status: 'maintenance' }
+        ];
+
+        // Function to render the table rows
+        function renderTableRows(data) {
+            const tableBody = document.getElementById('nodes-table-body');
+            tableBody.innerHTML = '';
+            
+            data.forEach(node => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                
+                // Determine status class and icon
+                let statusClass = '';
+                let statusIcon = '';
+                let pulseClass = '';
+                
+                switch(node.status) {
+                    case 'active':
+                        statusClass = 'status-active';
+                        statusIcon = 'fa-circle-check';
+                        pulseClass = 'pulse-active';
+                        break;
+                    case 'inactive':
+                        statusClass = 'status-inactive';
+                        statusIcon = 'fa-circle-xmark';
+                        break;
+                    case 'maintenance':
+                        statusClass = 'status-maintenance';
+                        statusIcon = 'fa-screwdriver-wrench';
+                        break;
+                    default:
+                        statusClass = 'status-unknown';
+                        statusIcon = 'fa-circle-question';
+                }
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${node.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center">
+                            <i class="fas fa-server mr-2 text-gray-400"></i>
+                            ${node.name}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center">
+                            <i class="fas fa-location-dot mr-2 text-gray-400"></i>
+                            ${node.location}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center">
+                            <i class="fas fa-network-wired mr-2 text-gray-400"></i>
+                            ${node.ip_address}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center">
+                            <i class="fas fa-hard-drive mr-2 text-gray-400"></i>
+                            <span class="truncate max-w-xs">${node.mapped_drive_path}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            <i class="fas ${statusIcon} mr-1 ${pulseClass}"></i>
+                            ${node.status.charAt(0).toUpperCase() + node.status.slice(1)}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex justify-end gap-2">
+                            <button class="text-blue-600 hover:text-blue-900">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="text-yellow-600 hover:text-yellow-900">
+                                <i class="fas fa-pen-to-square"></i>
+                            </button>
+                            <button class="text-red-600 hover:text-red-900">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Initial render
+        renderTableRows(nodesData);
+
+        // Filter functionality
+        document.getElementById('status-filter').addEventListener('change', function() {
+            const status = this.value;
+            let filteredData = nodesData;
+            
+            if (status !== 'all') {
+                filteredData = nodesData.filter(node => node.status === status);
+            }
+            
+            renderTableRows(filteredData);
+        });
+
+        // Search functionality
+        const searchInput = document.querySelector('input[type="text"]');
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredData = nodesData.filter(node => 
+                node.name.toLowerCase().includes(searchTerm) || 
+                node.location.toLowerCase().includes(searchTerm) ||
+                node.ip_address.toLowerCase().includes(searchTerm) ||
+                node.mapped_drive_path.toLowerCase().includes(searchTerm) ||
+                node.status.toLowerCase().includes(searchTerm)
+            );
+            
+            renderTableRows(filteredData);
+        });
+    </script>
+</body>
+</html>

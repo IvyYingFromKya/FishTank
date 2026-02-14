@@ -1,0 +1,377 @@
+<!-- templates/includes/sensors_content.html -->
+
+<!-- Sensor Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+  {% for label, count, color in [
+    ('Total Sensors', stats.total, 'bg-blue-100 text-blue-700'),
+    ('Active', stats.active, 'bg-green-100 text-green-700'),
+    ('Inactive', stats.inactive, 'bg-yellow-100 text-yellow-700'),
+    ('Faulty', stats.faulty, 'bg-red-100 text-red-700')
+  ] %}
+  <div class="p-4 rounded shadow {{ color }}">
+    <div class="text-sm font-medium">{{ label }}</div>
+    <div class="text-2xl font-bold">{{ count }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Filters and Add / Bulk Delete -->
+<div class="flex justify-between items-center mb-4">
+  <div class="flex items-center gap-2">
+    <input type="text" id="sensorSearch" placeholder="Search sensors..." class="border rounded px-3 py-1" />
+    <select id="statusFilter" class="border rounded px-3 py-1">
+      <option value="">All Status</option>
+      {% for status in status_options %}
+        <option value="{{ status }}">{{ status }}</option>
+      {% endfor %}
+    </select>
+    <select id="locationFilter" class="border rounded px-3 py-1">
+      <option value="">All Locations</option>
+      {% for loc in location_options %}
+        <option value="{{ loc }}">{{ loc }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="flex items-center gap-2">
+    <button id="deleteSelectedSensorsBtn" class="px-4 py-2 border rounded text-red-600 hover:bg-red-50">
+      Delete Selected
+    </button>
+    <button id="addSensorBtn" class="btn bg-indigo-600 text-white flex items-center space-x-2 px-4 py-2 rounded">
+      <i class="fas fa-plus"></i> <span>Add Sensor</span>
+    </button>
+  </div>
+</div>
+
+<!-- Sensor Table -->
+<div class="bg-white rounded shadow overflow-hidden">
+  <table class="min-w-full text-sm text-left">
+    <thead class="bg-gray-100 text-xs font-semibold text-gray-700 uppercase">
+      <tr>
+        <th class="px-4 py-3"><input id="selectAllSensors" type="checkbox" /></th>
+        <th class="px-4 py-3">ID</th>
+        <th class="px-4 py-3">Name</th>
+        <th class="px-4 py-3">Node</th>
+        <th class="px-4 py-3">Type</th>
+        <th class="px-4 py-3">Status</th>
+        <th class="px-4 py-3">Pin</th>
+        <th class="px-4 py-3">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="sensorTableBody" class="divide-y divide-gray-200">
+      {% for sensor in sensors %}
+      <tr class="hover:bg-gray-50 transition sensor-row"
+          data-name="{{ sensor.name|lower }}"
+          data-status="{{ (sensor.status_code or '')|lower }}"
+          data-location="{{ (sensor.location_name or '')|lower }}"
+          data-sensor='{{ {
+            "sensor_id": sensor.sensor_id,
+            "name": sensor.name,
+            "node_id": sensor.node_id,
+            "type_name": sensor.type_name,
+            "status_code": sensor.status_code,
+            "sensor_pin": sensor.sensor_pin,
+            "sensor_device_id": sensor.sensor_device_id,
+            "sensor_device_path": sensor.sensor_device_path,
+            "sensor_brand": sensor.sensor_brand,
+            "sensor_model": sensor.sensor_model,
+            "sensor_specification": sensor.sensor_specification,
+            "sensor_description": sensor.sensor_description,
+            "location_name": sensor.location_name,
+            "node_name": sensor.node_name,
+            "registered_on": sensor.registered_on
+          } | tojson | safe }}'>
+        <td class="px-4 py-3">
+          <input class="sensor-check" type="checkbox" data-id="{{ sensor.sensor_id }}" />
+        </td>
+        <td class="px-4 py-3">{{ sensor.sensor_id }}</td>
+        <td class="px-4 py-3 font-bold text-indigo-700">{{ sensor.name }}</td>
+        <td class="px-4 py-3">{{ sensor.node_id }}</td>
+        <td class="px-4 py-3">{{ sensor.type_name }}</td>
+        <td class="px-4 py-3">
+          <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium 
+            {% if sensor.status_code == 'Active' %}
+              bg-green-100 text-green-800
+            {% elif sensor.status_code == 'Inactive' %}
+              bg-yellow-100 text-yellow-800
+            {% elif sensor.status_code == 'Faulty' %}
+              bg-red-100 text-red-800
+            {% else %}
+              bg-gray-100 text-gray-800
+            {% endif %}">
+            <i class="fas fa-circle mr-1 text-xs"></i> {{ sensor.status_code }}
+          </span>
+        </td>
+        <td class="px-4 py-3">{{ sensor.sensor_pin }}</td>
+        <td class="px-4 py-3 text-indigo-600 flex gap-3">
+          <button class="sensor-edit-btn" title="Edit"><i class="fas fa-edit"></i></button>
+          <button class="sensor-delete-btn text-red-600" title="Delete" data-id="{{ sensor.sensor_id }}"><i class="fas fa-trash"></i></button>
+          <button class="sensor-details-btn" title="Toggle Details"><i class="fas fa-chevron-down"></i></button>
+        </td>
+      </tr>
+
+      <!-- Accordion Row -->
+      <tr class="sensor-details hidden bg-gray-50">
+        <td colspan="8" class="p-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h4 class="font-semibold text-gray-700 mb-2">Device Info</h4>
+              <div><strong>Device ID:</strong> {{ sensor.sensor_device_id }}</div>
+              <div><strong>Device Path:</strong> {{ sensor.sensor_device_path }}</div>
+              <div><strong>Specification:</strong> {{ sensor.sensor_specification }}</div>
+            </div>
+            <div>
+              <h4 class="font-semibold text-gray-700 mb-2">Brand Info</h4>
+              <div><strong>Brand:</strong> {{ sensor.sensor_brand }}</div>
+              <div><strong>Model:</strong> {{ sensor.sensor_model }}</div>
+            </div>
+          </div>
+          <div class="mt-4">
+            <div><strong>Description:</strong> {{ sensor.sensor_description }}</div>
+            <div><strong>Registered On:</strong> {{ sensor.registered_on }}</div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Add Sensor Modal -->
+<div id="addSensorModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+  <div class="bg-white p-6 rounded shadow-xl w-3/4 max-w-3xl relative">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg font-semibold">Add Sensor</h2>
+      <button type="button" class="text-gray-600 text-2xl font-bold leading-none" data-close-add-sensor>&times;</button>
+    </div>
+    <form id="addSensorForm" class="grid grid-cols-2 gap-4">
+      <div><label>Name *</label><input name="name" class="w-full border px-3 py-2 rounded" required></div>
+      <div><label>Node ID *</label><input name="node_id" class="w-full border px-3 py-2 rounded" required></div>
+
+      <div><label>Type</label><input name="type_name" class="w-full border px-3 py-2 rounded"></div>
+      <div>
+        <label>Status</label>
+        <select name="status_code" class="w-full border px-3 py-2 rounded">
+          {% for status in status_options %}
+            <option value="{{ status }}">{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div><label>Pin</label><input name="sensor_pin" class="w-full border px-3 py-2 rounded"></div>
+      <div><label>Device ID</label><input name="sensor_device_id" class="w-full border px-3 py-2 rounded"></div>
+      <div><label>Device Path</label><input name="sensor_device_path" class="w-full border px-3 py-2 rounded"></div>
+      <div><label>Specification</label><input name="sensor_specification" class="w-full border px-3 py-2 rounded"></div>
+
+      <div><label>Brand</label><input name="sensor_brand" class="w-full border px-3 py-2 rounded"></div>
+      <div><label>Model</label><input name="sensor_model" class="w-full border px-3 py-2 rounded"></div>
+
+      <div>
+        <label>Location</label>
+        <select name="location_name" class="w-full border px-3 py-2 rounded">
+          <option value=""></option>
+          {% for loc in location_options %}
+            <option value="{{ loc }}">{{ loc }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-span-2">
+        <label>Description</label>
+        <textarea name="sensor_description" class="w-full border px-3 py-2 rounded" rows="3"></textarea>
+      </div>
+
+      <div class="col-span-2 text-right space-x-2">
+        <button type="button" class="px-4 py-2 border rounded" data-close-add-sensor>Cancel</button>
+        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded">Add Sensor</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Sensor Modal -->
+<div id="editSensorModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+  <div class="bg-white p-6 rounded shadow-xl w-3/4 max-w-3xl relative">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg font-semibold">Edit Sensor</h2>
+      <button type="button" class="text-gray-600 text-2xl font-bold leading-none" data-close-edit-sensor>&times;</button>
+    </div>
+    <form id="editSensorForm" class="grid grid-cols-2 gap-4">
+      <input type="hidden" name="sensor_id" id="edit_sensor_id">
+      <div><label>Name *</label><input name="name" id="edit_name" class="w-full border px-3 py-2 rounded" required></div>
+      <div><label>Node ID *</label><input name="node_id" id="edit_node_id" class="w-full border px-3 py-2 rounded" required></div>
+
+      <div><label>Type</label><input name="type_name" id="edit_type_name" class="w-full border px-3 py-2 rounded"></div>
+      <div>
+        <label>Status</label>
+        <select name="status_code" id="edit_status_code" class="w-full border px-3 py-2 rounded">
+          {% for status in status_options %}
+            <option value="{{ status }}">{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div><label>Pin</label><input name="sensor_pin" id="edit_sensor_pin" class="w-full border px-3 py-2 rounded"></div>
+      <div><label>Device ID</label><input name="sensor_device_id" id="edit_sensor_device_id" class="w-full border px-3 py-2 rounded"></div>
+      <div><label>Device Path</label><input name="sensor_device_path" id="edit_sensor_device_path" class="w-full border px-3 py-2 rounded"></div>
+      <div><label>Specification</label><input name="sensor_specification" id="edit_sensor_specification" class="w-full border px-3 py-2 rounded"></div>
+
+      <div><label>Brand</label><input name="sensor_brand" id="edit_sensor_brand" class="w-full border px-3 py-2 rounded"></div>
+      <div><label>Model</label><input name="sensor_model" id="edit_sensor_model" class="w-full border px-3 py-2 rounded"></div>
+
+      <div>
+        <label>Location</label>
+        <select name="location_name" id="edit_location_name" class="w-full border px-3 py-2 rounded">
+          <option value=""></option>
+          {% for loc in location_options %}
+            <option value="{{ loc }}">{{ loc }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-span-2">
+        <label>Description</label>
+        <textarea name="sensor_description" id="edit_sensor_description" class="w-full border px-3 py-2 rounded" rows="3"></textarea>
+      </div>
+
+      <div class="col-span-2 text-right space-x-2">
+        <button type="button" class="px-4 py-2 border rounded" data-close-edit-sensor>Cancel</button>
+        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded">Update Sensor</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // ---------- Helpers ----------
+  const addSensorModal = document.getElementById('addSensorModal');
+  const editSensorModal = document.getElementById('editSensorModal');
+
+  function openAddSensor() { addSensorModal.classList.remove('hidden'); }
+  function closeAddSensor() { addSensorModal.classList.add('hidden'); }
+  function openEditSensor() { editSensorModal.classList.remove('hidden'); }
+  function closeEditSensor() { editSensorModal.classList.add('hidden'); }
+
+  // ---------- Add ----------
+  document.getElementById('addSensorBtn').addEventListener('click', openAddSensor);
+  document.querySelectorAll('[data-close-add-sensor]').forEach(b => b.addEventListener('click', closeAddSensor));
+
+  document.getElementById('addSensorForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await fetch('/ui/sensors/add', { method: 'POST', body: new FormData(e.target) });
+    const data = await res.json();
+    if (data.success) { closeAddSensor(); location.reload(); }
+    else alert(data.error || data.message || 'Add failed');
+  });
+
+  // ---------- Edit ----------
+  function fillEditSensorForm(s) {
+    document.getElementById('edit_sensor_id').value = s.sensor_id;
+    document.getElementById('edit_name').value = s.name || '';
+    document.getElementById('edit_node_id').value = s.node_id || '';
+    document.getElementById('edit_type_name').value = s.type_name || '';
+    document.getElementById('edit_status_code').value = s.status_code || '';
+    document.getElementById('edit_sensor_pin').value = s.sensor_pin || '';
+    document.getElementById('edit_sensor_device_id').value = s.sensor_device_id || '';
+    document.getElementById('edit_sensor_device_path').value = s.sensor_device_path || '';
+    document.getElementById('edit_sensor_specification').value = s.sensor_specification || '';
+    document.getElementById('edit_sensor_brand').value = s.sensor_brand || '';
+    document.getElementById('edit_sensor_model').value = s.sensor_model || '';
+    document.getElementById('edit_location_name').value = s.location_name || '';
+    document.getElementById('edit_sensor_description').value = s.sensor_description || '';
+  }
+
+  document.querySelectorAll('[data-close-edit-sensor]').forEach(b => b.addEventListener('click', closeEditSensor));
+
+  document.getElementById('editSensorForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await fetch('/ui/sensors/edit', { method: 'POST', body: new FormData(e.target) });
+    const data = await res.json();
+    if (data.success) { closeEditSensor(); location.reload(); }
+    else alert(data.error || 'Update failed');
+  });
+
+  // ---------- Delegated actions (edit / details / delete) ----------
+  document.addEventListener('click', async (e) => {
+    // edit
+    const eb = e.target.closest('.sensor-edit-btn');
+    if (eb) {
+      const row = eb.closest('tr');
+      const payload = JSON.parse(row.getAttribute('data-sensor'));
+      fillEditSensorForm(payload);
+      openEditSensor();
+      return;
+    }
+
+    // details
+    const dbtn = e.target.closest('.sensor-details-btn');
+    if (dbtn) {
+      const row = dbtn.closest('tr');
+      const next = row.nextElementSibling;
+      if (next && next.classList.contains('sensor-details')) {
+        next.classList.toggle('hidden');
+      }
+      return;
+    }
+
+    // single delete
+    const del = e.target.closest('.sensor-delete-btn');
+    if (del) {
+      const id = parseInt(del.dataset.id, 10);
+      if (!id) return;
+      if (!confirm(`Delete sensor #${id}? This cannot be undone.`)) return;
+
+      const res = await fetch(`/ui/sensors/${id}/delete`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) location.reload();
+      else alert(data.error || 'Delete failed');
+      return;
+    }
+  });
+
+  // ---------- Bulk delete ----------
+  document.getElementById('selectAllSensors').addEventListener('change', function () {
+    document.querySelectorAll('.sensor-check').forEach(cb => cb.checked = this.checked);
+  });
+
+  document.getElementById('deleteSelectedSensorsBtn').addEventListener('click', async () => {
+    const ids = Array.from(document.querySelectorAll('.sensor-check:checked'))
+      .map(cb => parseInt(cb.dataset.id, 10))
+      .filter(Boolean);
+    if (!ids.length) return alert('Select at least one sensor to delete.');
+    if (!confirm(`Delete ${ids.length} selected sensor(s)? This cannot be undone.`)) return;
+
+    const res = await fetch('/ui/sensors/delete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ ids })
+    });
+    const data = await res.json();
+    if (data.success) location.reload();
+    else alert(data.error || 'Delete failed');
+  });
+
+  // ---------- Filters ----------
+  function filterSensors() {
+    const search = (document.getElementById('sensorSearch').value || '').toLowerCase();
+    const status = (document.getElementById('statusFilter').value || '').toLowerCase();
+    const location = (document.getElementById('locationFilter').value || '').toLowerCase();
+
+    const rows = document.querySelectorAll('.sensor-row');
+    rows.forEach(row => {
+      const matchesSearch = row.dataset.name.includes(search);
+      const matchesStatus = !status || row.dataset.status === status;
+      const matchesLocation = !location || row.dataset.location === location;
+      const show = matchesSearch && matchesStatus && matchesLocation;
+
+      row.style.display = show ? '' : 'none';
+      const details = row.nextElementSibling;
+      if (details && details.classList.contains('sensor-details')) {
+        details.style.display = show ? '' : 'none';
+      }
+    });
+  }
+
+  document.getElementById('sensorSearch').addEventListener('input', filterSensors);
+  document.getElementById('statusFilter').addEventListener('change', filterSensors);
+  document.getElementById('locationFilter').addEventListener('change', filterSensors);
+</script>

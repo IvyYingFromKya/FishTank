@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nodes Database Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .status-active {
+            background-color: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+        .status-inactive {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+        .status-maintenance {
+            background-color: rgba(234, 179, 8, 0.1);
+            color: #eab308;
+        }
+        .status-unknown {
+            background-color: rgba(156, 163, 175, 0.1);
+            color: #9ca3af;
+        }
+        
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800">
+                    <i class="fas fa-server mr-2 text-blue-500"></i>
+                    Nodes Management
+                </h1>
+                <div class="flex space-x-4">
+                    <button class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition flex items-center">
+                        <i class="fas fa-plus mr-2"></i>
+                        Add Node
+                    </button>
+                    <button class="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition flex items-center">
+                        <i class="fas fa-filter mr-2"></i>
+                        Filters
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-blue-100 text-blue-500 mr-4">
+                            <i class="fas fa-server text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Total Nodes</p>
+                            <h3 class="text-2xl font-bold" id="totalNodes">0</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-green-100 text-green-500 mr-4">
+                            <i class="fas fa-check-circle text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Active</p>
+                            <h3 class="text-2xl font-bold" id="activeNodes">0</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-red-100 text-red-500 mr-4">
+                            <i class="fas fa-times-circle text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Inactive</p>
+                            <h3 class="text-2xl font-bold" id="inactiveNodes">0</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-yellow-100 text-yellow-500 mr-4">
+                            <i class="fas fa-tools text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Maintenance</p>
+                            <h3 class="text-2xl font-bold" id="maintenanceNodes">0</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search and Controls -->
+            <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div class="relative flex-grow max-w-md">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </div>
+                        <input type="text" id="searchInput" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Search nodes...">
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div>
+                            <label for="statusFilter" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <select id="statusFilter" class="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                                <option value="all">All Statuses</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="maintenance">Maintenance</option>
+                                <option value="unknown">Unknown</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="rowsPerPage" class="block text-sm font-medium text-gray-700 mb-1">Rows</label>
+                            <select id="rowsPerPage" class="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="bg-white shadow-sm rounded-lg overflow-hidden">
+                <!-- Table -->
+                <div class="overflow-x-auto scrollbar-hide">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                    <div class="flex items-center">
+                                        ID
+                                        <i class="fas fa-sort ml-1 text-gray-400"></i>
+                                    </div>
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                    <div class="flex items-center">
+                                        Name
+                                        <i class="fas fa-sort ml-1 text-gray-400"></i>
+                                    </div>
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                    <div class="flex items-center">
+                                        Location
+                                        <i class="fas fa-sort ml-1 text-gray-400"></i>
+                                    </div>
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                    <div class="flex items-center">
+                                        IP Address
+                                        <i class="fas fa-sort ml-1 text-gray-400"></i>
+                                    </div>
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                    <div class="flex items-center">
+                                        Mapped Drive
+                                        <i class="fas fa-sort ml-1 text-gray-400"></i>
+                                    </div>
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                                    <div class="flex items-center">
+                                        Status
+                                        <i class="fas fa-sort ml-1 text-gray-400"></i>
+                                    </div>
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="nodesTableBody">
+                            <!-- Data will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                    <div class="flex-1 flex justify-between sm:hidden">
+                        <button id="prevPageMobile" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Previous
+                        </button>
+                        <button id="nextPageMobile" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Next
+                        </button>
+                    </div>
+                    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                        <div>
+                            <p class="text-sm text-gray-700">
+                                Showing <span id="startItem" class="font-medium">1</span> to <span id="endItem" class="font-medium">10</span> of <span id="totalItems" class="font-medium">0</span> results
+                            </p>
+                        </div>
+                        <div>
+                            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                                <button id="firstPage" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">First</span>
+                                    <i class="fas fa-angle-double-left"></i>
+                                </button>
+                                <button id="prevPage" class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Previous</span>
+                                    <i class="fas fa-angle-left"></i>
+                                </button>
+                                <div id="pageNumbers" class="flex">
+                                    <!-- Page numbers will be inserted here by JavaScript -->
+                                </div>
+                                <button id="nextPage" class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Next</span>
+                                    <i class="fas fa-angle-right"></i>
+                                </button>
+                                <button id="lastPage" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Last</span>
+                                    <i class="fas fa-angle-double-right"></i>
+                                </button>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Node Details Modal -->
+    <div id="nodeModal" class="fixed z-10 inset-0 overflow-y-auto hidden">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                            <i class="fas fa-server text-blue-500"></i>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="modalTitle">
+                                Node Details
+                            </h3>
+                            <div class="mt-4 grid grid-cols-1 gap-y-4 gap-x-8 sm:grid-cols-2">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">ID</label>
+                                    <p class="mt-1 text-sm text-gray-900" id="modalId">-</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Name</label>
+                                    <p class="mt-1 text-sm text-gray-900" id="modalName">-</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Location</label>
+                                    <p class="mt-1 text-sm text-gray-900" id="modalLocation">-</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">IP Address</label>
+                                    <p class="mt-1 text-sm text-gray-900" id="modalIp">-</p>
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700">Mapped Drive Path</label>
+                                    <p class="mt-1 text-sm text-gray-900 break-all" id="modalDrive">-</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Status</label>
+                                    <p class="mt-1 text-sm" id="modalStatus">-</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" id="closeModal" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-500 text-base font-medium text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample data - in a real app, this would come from an API
+        const sampleNodes = [
+            { id: 1, name: 'Node-01', location: 'Data Center A', ip_address: '192.168.1.10', mapped_drive_path: '\\fileserver\share\node01', status: 'active' },
+            { id: 2, name: 'Node-02', location: 'Data Center B', ip_address: '192.168.1.11', mapped_drive_path: '\\fileserver\share\node02', status: 'active' },
+            { id: 3, name: 'Node-03', location: 'Data Center C', ip_address: '192.168.1.12', mapped_drive_path: '\\fileserver\share\node03', status: 'inactive' },
+            { id: 4, name: 'Node-04', location: 'Data Center A', ip_address: '192.168.1.13', mapped_drive_path: '\\fileserver\share\node04', status: 'maintenance' },
+            { id: 5, name: 'Node-05', location: 'Data Center B', ip_address: '192.168.1.14', mapped_drive_path: '\\fileserver\share\node05', status: 'active' },
+            { id: 6, name: 'Node-06', location: 'Remote Office', ip_address: '192.168.2.10', mapped_drive_path: '\\fileserver\share\node06', status: 'unknown' },
+            { id: 7, name: 'Node-07', location: 'Data Center C', ip_address: '192.168.1.15', mapped_drive_path: '\\fileserver\share\node07', status: 'inactive' },
+            { id: 8, name: 'Node-08', location: 'Data Center A', ip_address: '192.168.1.16', mapped_drive_path: '\\fileserver\share\node08', status: 'active' },
+            { id: 9, name: 'Node-09', location: 'Remote Office', ip_address: '192.168.2.11', mapped_drive_path: '\\fileserver\share\node09', status: 'maintenance' },
+            { id: 10, name: 'Node-10', location: 'Data Center B', ip_address: '192.168.1.17', mapped_drive_path: '\\fileserver\share\node10', status: 'active' },
+            { id: 11, name: 'Node-11', location: 'Data Center C', ip_address: '192.168.1.18', mapped_drive_path: '\\fileserver\share\node11', status: 'inactive' },
+            { id: 12, name: 'Node-12', location: 'Remote Office', ip_address: '192.168.2.12', mapped_drive_path: '\\fileserver\share\node12', status: 'active' },
+        ];
+
+        // Current state
+        let currentPage = 1;
+        let rowsPerPage = 10;
+        let currentFilter = 'all';
+        let currentSearch = '';
+        let sortColumn = 'id';
+        let sortDirection = 'asc';
+
+        // DOM elements
+        const nodesTableBody = document.getElementById('nodesTableBody');
+        const totalNodes = document.getElementById('totalNodes');
+        const activeNodes = document.getElementById('activeNodes');
+        const inactiveNodes = document.getElementById('inactiveNodes');
+        const maintenanceNodes = document.getElementById('maintenanceNodes');
+        const searchInput = document.getElementById('searchInput');
+        const statusFilter = document.getElementById('statusFilter');
+        const rowsPerPageSelect = document.getElementById('rowsPerPage');
+        const startItem = document.getElementById('startItem');
+        const endItem = document.getElementById('endItem');
+        const totalItems = document.getElementById('totalItems');
+        const pageNumbers = document.getElementById('pageNumbers');
+        const prevPage = document.getElementById('prevPage');
+        const nextPage = document.getElementById('nextPage');
+        const firstPage = document.getElementById('firstPage');
+        const lastPage = document.getElementById('lastPage');
+        const prevPageMobile = document.getElementById('prevPageMobile');
+        const nextPageMobile = document.getElementById('nextPageMobile');
+        const nodeModal = document.getElementById('nodeModal');
+        const closeModal = document.getElementById('closeModal');
+
+        // Initialize
+        function init() {
+            renderTable();
+            updateStats();
+            setupEventListeners();
+        }
+
+        // Set up event listeners
+        function setupEventListeners() {
+            searchInput.addEventListener('input', (e) => {
+                currentSearch = e.target.value.toLowerCase();
+                currentPage = 1;
+                renderTable();
+                updateStats();
+            });
+
+            statusFilter.addEventListener('change', (e) => {
+                currentFilter = e.target.value;
+                currentPage = 1;
+                renderTable();
+                updateStats();
+            });
+
+            rowsPerPageSelect.addEventListener('change', (e) => {
+                rowsPerPage = parseInt(e.target.value);
+                currentPage = 1;
+                renderTable();
+            });
+
+            prevPage.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderTable();
+                }
+            });
+
+            nextPage.addEventListener('click', () => {
+                const totalPages = Math.ceil(getFilteredNodes().length / rowsPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderTable();
+                }
+            });
+
+            firstPage.addEventListener('click', () => {
+                currentPage = 1;
+                renderTable();
+            });
+
+            lastPage.addEventListener('click', () => {
+                const totalPages = Math.ceil(getFilteredNodes().length / rowsPerPage);
+                currentPage = totalPages;
+                renderTable();
+            });
+
+            prevPageMobile.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderTable();
+                }
+            });
+
+            nextPageMobile.addEventListener('click', () => {
+                const totalPages = Math.ceil(getFilteredNodes().length / rowsPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderTable();
+                }
+            });
+
+            closeModal.addEventListener('click', () => {
+                nodeModal.classList.add('hidden');
+            });
+
+            // Add sort listeners to table headers
+            document.querySelectorAll('th[scope="col"]').forEach(header => {
+                header.addEventListener('click', () => {
+                    const column = header.textContent.trim().toLowerCase().replace(' ', '_');
+                    if (sortColumn === column) {
+                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortColumn = column;
+                        sortDirection = 'asc';
+                    }
+                    renderTable();
+                });
+            });
+        }
+
+        // Get filtered nodes based on search and filter
+        function getFilteredNodes() {
+            return sampleNodes.filter(node => {
+                const matchesSearch = 
+                    node.id.toString().includes(currentSearch) ||
+                    node.name.toLowerCase().includes(currentSearch) ||
+                    node.location.toLowerCase().includes(currentSearch) ||
+                    node.ip_address.toLowerCase().includes(currentSearch) ||
+                    node.mapped_drive_path.toLowerCase().includes(currentSearch) ||
+                    node.status.toLowerCase().includes(currentSearch);
+                
+                const matchesFilter = currentFilter === 'all' || node.status === currentFilter;
+                
+                return matchesSearch && matchesFilter;
+            });
+        }
+
+        // Sort nodes
+        function sortNodes(nodes) {
+            return nodes.sort((a, b) => {
+                let valueA, valueB;
+                
+                if (sortColumn === 'id') {
+                    valueA = a.id;
+                    valueB = b.id;
+                } else if (sortColumn === 'name') {
+                    valueA = a.name;
+                    valueB = b.name;
+                } else if (sortColumn === 'location') {
+                    valueA = a.location;
+                    valueB = b.location;
+                } else if (sortColumn === 'ip_address') {
+                    valueA = a.ip_address;
+                    valueB = b.ip_address;
+                } else if (sortColumn === 'mapped_drive') {
+                    valueA = a.mapped_drive_path;
+                    valueB = b.mapped_drive_path;
+                } else if (sortColumn === 'status') {
+                    valueA = a.status;
+                    valueB = b.status;
+                }
+                
+                if (sortDirection === 'asc') {
+                    return valueA > valueB ? 1 : -1;
+                } else {
+                    return valueA < valueB ? 1 : -1;
+                }
+            });
+        }
+
+        // Render the table
+        function renderTable() {
+            const filteredNodes = getFilteredNodes();
+            const sortedNodes = sortNodes([...filteredNodes]);
+            const paginatedNodes = sortedNodes.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+            
+            nodesTableBody.innerHTML = '';
+            
+            if (paginatedNodes.length === 0) {
+                nodesTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+                            No nodes found matching your criteria
+                        </td>
+                    </tr>
+                `;
+            } else {
+                paginatedNodes.forEach(node => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50 cursor-pointer';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${node.id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${node.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${node.location}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${node.ip_address}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate max-w-xs">${node.mapped_drive_path}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full status-${node.status}">
+                                ${getStatusIcon(node.status)} ${node.status.charAt(0).toUpperCase() + node.status.slice(1)}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button class="text-blue-500 hover:text-blue-700 mr-3 view-btn" data-id="${node.id}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="text-green-500 hover:text-green-700 mr-3 edit-btn" data-id="${node.id}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="text-red-500 hover:text-red-700 delete-btn" data-id="${node.id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    nodesTableBody.appendChild(row);
+                });
+            }
+            
+            updatePagination(filteredNodes.length);
+            
+            // Add event listeners to the action buttons
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const nodeId = parseInt(btn.getAttribute('data-id'));
+                    showNodeDetails(nodeId);
+                });
+            });
+            
+            document.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const nodeId = parseInt(btn.getAttribute('data-id'));
+                    alert(`Edit node ${nodeId} - This would open an edit form in a real application`);
+                });
+            });
+            
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const nodeId = parseInt(btn.getAttribute('data-id'));
+                    if (confirm(`Are you sure you want to delete node ${nodeId}?`)) {
+                        alert(`Node ${nodeId} would be deleted in a real application`);
+                    }
+                });
+            });
+            
+            // Add click event to rows to show details
+            document.querySelectorAll('tbody tr').forEach(row => {
+                row.addEventListener('click', () => {
+                    const nodeId = parseInt(row.querySelector('.view-btn').getAttribute('data-id'));
+                    showNodeDetails(nodeId);
+                });
+            });
+        }
+
+        // Get status icon
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'active':
+                    return '<i class="fas fa-circle mr-1"></i>';
+                case 'inactive':
+                    return '<i class="fas fa-circle mr-1"></i>';
+                case 'maintenance':
+                    return '<i class="fas fa-tools mr-1"></i>';
+                default:
+                    return '<i class="fas fa-question-circle mr-1"></i>';
+            }
+        }
+
+        // Update pagination controls
+        function updatePagination(totalItemsCount) {
+            const totalPages = Math.ceil(totalItemsCount / rowsPerPage);
+            
+            startItem.textContent = (currentPage - 1) * rowsPerPage + 1;
+            endItem.textContent = Math.min(currentPage * rowsPerPage, totalItemsCount);
+            totalItems.textContent = totalItemsCount;
+            
+            // Disable/enable pagination buttons
+            prevPage.disabled = currentPage === 1;
+            nextPage.disabled = currentPage === totalPages;
+            firstPage.disabled = currentPage === 1;
+            lastPage.disabled = currentPage === totalPages;
+            prevPageMobile.disabled = currentPage === 1;
+            nextPageMobile.disabled = currentPage === totalPages;
+            
+            // Update page numbers
+            pageNumbers.innerHTML = '';
+            
+            const maxPagesToShow = 5;
+            let startPage, endPage;
+            
+            if (totalPages <= maxPagesToShow) {
+                startPage = 1;
+                endPage = totalPages;
+            } else {
+                const halfMax = Math.floor(maxPagesToShow / 2);
+                if (currentPage <= halfMax) {
+                    startPage = 1;
+                    endPage = maxPagesToShow;
+                } else if (currentPage + halfMax >= totalPages) {
+                    startPage = totalPages - maxPagesToShow + 1;
+                    endPage = totalPages;
+                } else {
+                    startPage = currentPage - halfMax;
+                    endPage = currentPage + halfMax;
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = `relative inline-flex items-center px-4 py-2 border text-sm font-medium ${i === currentPage ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`;
+                pageBtn.textContent = i;
+                pageBtn.addEventListener('click', () => {
+                    currentPage = i;
+                    renderTable();
+                });
+                pageNumbers.appendChild(pageBtn);
+            }
+        }
+
+        // Update stats cards
+        function updateStats() {
+            const filteredNodes = getFilteredNodes();
+            
+            totalNodes.textContent = filteredNodes.length;
+            activeNodes.textContent = filteredNodes.filter(node => node.status === 'active').length;
+            inactiveNodes.textContent = filteredNodes.filter(node => node.status === 'inactive').length;
+            maintenanceNodes.textContent = filteredNodes.filter(node => node.status === 'maintenance').length;
+        }
+
+        // Show node details in modal
+        function showNodeDetails(nodeId) {
+            const node = sampleNodes.find(n => n.id === nodeId);
+            if (!node) return;
+            
+            document.getElementById('modalId').textContent = node.id;
+            document.getElementById('modalName').textContent = node.name;
+            document.getElementById('modalLocation').textContent = node.location;
+            document.getElementById('modalIp').textContent = node.ip_address;
+            document.getElementById('modalDrive').textContent = node.mapped_drive_path;
+            
+            const statusElement = document.getElementById('modalStatus');
+            statusElement.textContent = node.status.charAt(0).toUpperCase() + node.status.slice(1);
+            statusElement.className = `mt-1 text-sm ${getStatusClass(node.status)}`;
+            
+            document.getElementById('modalTitle').textContent = `Node Details: ${node.name}`;
+            nodeModal.classList.remove('hidden');
+        }
+
+        // Get status class for styling
+        function getStatusClass(status) {
+            switch(status) {
+                case 'active':
+                    return 'status-active';
+                case 'inactive':
+                    return 'status-inactive';
+                case 'maintenance':
+                    return 'status-maintenance';
+                default:
+                    return 'status-unknown';
+            }
+        }
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
