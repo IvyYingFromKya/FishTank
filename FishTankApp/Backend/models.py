@@ -55,11 +55,9 @@ class SensorType(db.Model):
 
 class SensorStatus(db.Model):
     __tablename__ = 'sensor_status'
-    status_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    sensor_id = db.Column(db.Integer, db.ForeignKey('sensors.sensor_id'))
-    timestamp = db.Column(db.String, nullable=False)
-    status_code = db.Column(db.String)
-    message = db.Column(db.String)
+    sensor_status_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    sensor_status_code = db.Column(db.String)
+    status_description = db.Column(db.String)
 
 class Sensor(db.Model):
     __tablename__ = 'sensors'
@@ -67,7 +65,7 @@ class Sensor(db.Model):
     node_id = db.Column(db.Integer, db.ForeignKey('nodes.node_id'), nullable=False)
     location_id = db.Column(db.Integer, db.ForeignKey('locations.location_id'), nullable=False)
     sensor_type_id = db.Column(db.Integer, db.ForeignKey('sensor_type.sensor_type_id'), nullable=False)
-    sensor_status_id = db.Column(db.Integer, db.ForeignKey('sensor_status.status_id'))
+    sensor_status_id = db.Column(db.Integer, db.ForeignKey('sensor_status.sensor_status_id'))
     sensor_device_id = db.Column(db.String)
     sensor_device_path = db.Column(db.String)
     sensor_brand = db.Column(db.String)

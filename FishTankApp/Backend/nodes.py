@@ -49,6 +49,10 @@ def get_node(node_id):
 @nodes_bp.route('/', methods=['POST'])
 def add_node():
     data = request.json
+    registered_on = data.get('registered_on')
+    if isinstance(registered_on, str):
+        registered_on = datetime.fromisoformat(registered_on)
+
     new_node = Node(
         node_name=data.get('node_name'),
         hostname=data['hostname'],
@@ -62,7 +66,7 @@ def add_node():
         local_drive_name=data.get('local_drive_name'),
         local_drive_path=data.get('local_drive_path'),
         description=data.get('description', ''),
-        registered_on=data.get('registered_on', datetime.utcnow().isoformat())
+        registered_on=registered_on or datetime.utcnow()
     )
     db.session.add(new_node)
     db.session.commit()
@@ -85,7 +89,9 @@ def update_node(node_id):
     node.local_drive_name = data.get('local_drive_name', node.local_drive_name)
     node.local_drive_path = data.get('local_drive_path', node.local_drive_path)
     node.description = data.get('description', node.description)
-    node.registered_on = data.get('registered_on', node.registered_on)
+    registered_on = data.get('registered_on')
+    if registered_on is not None:
+        node.registered_on = datetime.fromisoformat(registered_on) if isinstance(registered_on, str) else registered_on
 
     db.session.commit()
     return jsonify({'message': 'Node updated successfully'})

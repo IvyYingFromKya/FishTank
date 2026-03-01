@@ -60,9 +60,11 @@ def _sensor_conn():
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
-def _range_to_start(ts_range: str) -> datetime:
+def _range_to_start(ts_range: str) -> datetime | None:
     now = datetime.now()
     ts_range = (ts_range or '24H').upper()
+    if ts_range == 'ALL':
+        return None
     if ts_range == '7D':
         return now - timedelta(days=7)
     if ts_range == '1M':
@@ -162,45 +164,98 @@ def api_dashboard_summary():
 @app.route('/api/dashboard/chart')
 @login_required
 def api_dashboard_chart():
+    """
+    Return multi-series chart data grouped by sensor so the dashboard can draw
+    one line per sensor.
+
+    Response shape:
+    {
+      "datasets": [
+        {"sensor_id": 1, "label": "Tank A Temp", "data": [{"x": "...", "y": 24.5}, ...]},
+        ...
+      ]
+    }
+    """
     series_type = (request.args.get('type') or 'temperature').lower()
     ts_range = request.args.get('range') or '24H'
 
-    start_dt = _range_to_start(ts_range)
-    start_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
-
-    # choose column name (your readings table earlier had 'temperature';
-    # if you also store humidity, name assumed 'humidity')
     if series_type not in ('temperature', 'humidity'):
         return jsonify({"error": "type must be 'temperature' or 'humidity'"}), 400
 
+    start_dt = _range_to_start(ts_range)
     value_col = 'temperature' if series_type == 'temperature' else 'humidity'
 
     conn = _sensor_conn()
     cur = conn.cursor()
 
-    # If humidity column doesn't exist, return empty set gracefully
     try:
-        cur.execute(f"""
-            SELECT timestamp, {value_col} AS val
-            FROM readings
-            WHERE timestamp >= ?
-            ORDER BY timestamp ASC
-        """, (start_str,))
+        if start_dt is None:
+            cur.execute(f"""
+                SELECT
+                  r.sensor_id,
+                  COALESCE(s.name, 'Sensor ' || r.sensor_id) AS sensor_name,
+                  r.timestamp,
+                  r.{value_col} AS val
+                FROM readings r
+                LEFT JOIN sensors s
+                  ON s.sensor_id = r.sensor_id
+                ORDER BY r.sensor_id ASC, r.timestamp ASC
+            """)
+        else:
+            start_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+            cur.execute(f"""
+                SELECT
+                  r.sensor_id,
+                  COALESCE(s.name, 'Sensor ' || r.sensor_id) AS sensor_name,
+                  r.timestamp,
+                  r.{value_col} AS val
+                FROM readings r
+                LEFT JOIN sensors s
+                  ON s.sensor_id = r.sensor_id
+                WHERE r.timestamp >= ?
+                ORDER BY r.sensor_id ASC, r.timestamp ASC
+            """, (start_str,))
+
         rows = cur.fetchall()
+
+        # Fallback to all-time data when selected range has no records.
+        if not rows and start_dt is not None:
+            cur.execute(f"""
+                SELECT
+                  r.sensor_id,
+                  COALESCE(s.name, 'Sensor ' || r.sensor_id) AS sensor_name,
+                  r.timestamp,
+                  r.{value_col} AS val
+                FROM readings r
+                LEFT JOIN sensors s
+                  ON s.sensor_id = r.sensor_id
+                ORDER BY r.sensor_id ASC, r.timestamp ASC
+            """)
+            rows = cur.fetchall()
     except sqlite3.OperationalError:
         # e.g., no humidity column yet
         rows = []
 
-    labels = [r['timestamp'] for r in rows]
-    values = []
-    for r in rows:
-        try:
-            values.append(float(r['val']) if r['val'] is not None else None)
-        except (TypeError, ValueError):
-            values.append(None)
-
     conn.close()
-    return jsonify({"labels": labels, "series": values})
+
+    grouped = {}
+    for row in rows:
+        sid = row['sensor_id']
+        if sid not in grouped:
+            grouped[sid] = {
+                "sensor_id": sid,
+                "label": row['sensor_name'] or f"Sensor {sid}",
+                "data": []
+            }
+
+        try:
+            y_val = float(row['val']) if row['val'] is not None else None
+        except (TypeError, ValueError):
+            y_val = None
+
+        grouped[sid]["data"].append({"x": row['timestamp'], "y": y_val})
+
+    return jsonify({"datasets": list(grouped.values())})
 
 
 # ---------------------------------------------------------------------
@@ -245,7 +300,7 @@ def api_dashboard_latest():
           ON st.sensor_id = s.sensor_id AND st.timestamp = ls.max_ts
         LEFT JOIN sensor_status ss
           ON ss.sensor_status_id = st.sensor_status_id
-        ORDER BY r.timestamp DESC NULLS LAST, s.sensor_id ASC
+        ORDER BY (r.timestamp IS NULL), r.timestamp DESC, s.sensor_id ASC
         LIMIT 50
     """)
     rows = cur.fetchall()
@@ -687,7 +742,7 @@ def config():
 def home():
     if current_user.is_authenticated:
         return redirect('/ui/dashboard')
-    return redirect('./login')
+    return redirect('/auth/login')
 
 
 # =====================================================================

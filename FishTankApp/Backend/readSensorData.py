@@ -1,104 +1,177 @@
+import csv
 import os
 import sqlite3
-import shutil
 import tempfile
 import time
+from contextlib import closing
 
 # === Configuration ===
 MAPPED_DRIVE_ROOT = "S:\\"  # Update this if you're using different drives
 DATABASE_PATH = ".\\instance\\sensor_data.db"
 READ_INTERVAL_SECONDS = 5  # seconds
 
+# Shared-folder lock mitigation
+COPY_RETRIES = 5
+COPY_RETRY_DELAY_SECONDS = 0.5
+FILE_STABLE_SECONDS = 2  # skip files modified very recently (likely still being written)
+
+
+def _is_stable_file(file_path: str) -> bool:
+    """Avoid reading files that are still being actively written."""
+    try:
+        return (time.time() - os.path.getmtime(file_path)) >= FILE_STABLE_SECONDS
+    except OSError:
+        return False
+
+
+def _copy_to_temp_with_retry(file_path: str) -> str | None:
+    """Create a local temp snapshot of the network file with retry for transient locks."""
+    suffix = os.path.splitext(file_path)[1] or ".csv"
+
+    for attempt in range(1, COPY_RETRIES + 1):
+        try:
+            fd, temp_path = tempfile.mkstemp(suffix=suffix)
+            os.close(fd)
+
+            # binary copy to avoid newline/encoding surprises while snapshotting
+            with open(file_path, "rb") as src, open(temp_path, "wb") as dst:
+                while True:
+                    chunk = src.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    dst.write(chunk)
+
+            return temp_path
+        except (PermissionError, OSError) as exc:
+            print(f"[WARN] File lock/access issue ({attempt}/{COPY_RETRIES}) for {file_path}: {exc}")
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+            time.sleep(COPY_RETRY_DELAY_SECONDS)
+
+    print(f"[WARN] Skipping locked file after retries: {file_path}")
+    return None
+
+
+def _iter_data_files(root_path: str):
+    """
+    Yield candidate data files recursively.
+
+    Supports:
+    - New format: year/month/day/hour.csv
+    - Legacy format: .data files
+    """
+    for dirpath, _, filenames in os.walk(root_path):
+        for filename in filenames:
+            lower = filename.lower()
+            if lower.endswith('.csv') or lower.endswith('.data'):
+                yield os.path.join(dirpath, filename)
+
+
+def _parse_reading_line(parts: list[str], fallback_sensor_id: str | None = None):
+    """
+    Accept both formats:
+    1) legacy: timestamp,temperature
+    2) current: sensor_id,timestamp,sensor_type,sensor_reading
+    """
+    parts = [p.strip() for p in parts]
+
+    # Current format
+    if len(parts) >= 4:
+        sensor_id = parts[0]
+        timestamp = parts[1]
+        sensor_type = parts[2].lower()
+        reading = float(parts[3])
+
+        if sensor_type not in ("temperature", "temp"):
+            return None  # Ignore non-temperature rows for current DB schema
+
+        return sensor_id, timestamp, reading
+
+    # Legacy format
+    if len(parts) >= 2 and fallback_sensor_id:
+        timestamp = parts[0]
+        reading = float(parts[1])
+        return fallback_sensor_id, timestamp, reading
+
+    return None
+
+
 def read_sensor_data_and_store():
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    insert_count = 0
+    with closing(sqlite3.connect(DATABASE_PATH, timeout=30)) as conn:
+        conn.execute("PRAGMA busy_timeout = 30000")
+        conn.execute("PRAGMA journal_mode = WAL")
+        cursor = conn.cursor()
 
-    print(f"\n🔍 Scanning root directory: {MAPPED_DRIVE_ROOT}\n")
+        insert_count = 0
+        print(f"\n🔍 Scanning root directory: {MAPPED_DRIVE_ROOT}\n")
 
-    for sensor_id in os.listdir(MAPPED_DRIVE_ROOT):
-        sensor_path = os.path.join(MAPPED_DRIVE_ROOT, sensor_id)
-        print(f"📁 Sensor ID: {sensor_id} → {sensor_path}")
-        if not os.path.isdir(sensor_path):
-            continue
+        if not os.path.isdir(MAPPED_DRIVE_ROOT):
+            print(f"[WARN] Shared path not reachable: {MAPPED_DRIVE_ROOT}")
+            return
 
-        for year in os.listdir(sensor_path):
-            year_path = os.path.join(sensor_path, year)
-            if not os.path.isdir(year_path):
+        for file_path in _iter_data_files(MAPPED_DRIVE_ROOT):
+            if not _is_stable_file(file_path):
+                print(f"[INFO] Skipping in-progress file: {file_path}")
                 continue
 
-            for month in os.listdir(year_path):
-                month_path = os.path.join(year_path, month)
-                if not os.path.isdir(month_path):
-                    continue
+            print(f"📄 Processing: {file_path}")
+            temp_path = _copy_to_temp_with_retry(file_path)
+            if not temp_path:
+                continue
 
-                for day in os.listdir(month_path):
-                    day_path = os.path.join(month_path, day)
-                    if not os.path.isdir(day_path):
-                        continue
+            # Best-effort fallback for legacy folder layout where top dir was sensor_id
+            rel_parts = os.path.normpath(file_path).split(os.sep)
+            fallback_sensor_id = rel_parts[-5] if len(rel_parts) >= 5 else None
 
-                    for filename in os.listdir(day_path):
-                        if filename.endswith(".data"):
-                            file_path = os.path.join(day_path, filename)
-                            print(f"📄 Reading original file: {file_path}")
+            try:
+                with open(temp_path, "r", newline="") as f:
+                    reader = csv.reader(f)
+                    for row in reader:
+                        if not row:
+                            continue
 
-                            try:
-                                fd, temp_path = tempfile.mkstemp(suffix=".data")
-                                os.close(fd)
-                                shutil.copyfile(file_path, temp_path)
-                                print(f"🗂️  Temporary copy created at: {temp_path}")
-                            except Exception as e:
-                                print(f"[ERROR] Failed to copy to temp file: {e}")
+                        try:
+                            parsed = _parse_reading_line(row, fallback_sensor_id=fallback_sensor_id)
+                            if not parsed:
                                 continue
 
-                            try:
-                                with open(temp_path, "r") as f:
-                                    for line in f:
-                                        line = line.strip()
-                                        if not line:
-                                            continue
+                            sensor_id, timestamp, temperature = parsed
 
-                                        print(f"🧾 Line read: {line}")
+                            cursor.execute(
+                                """
+                                SELECT 1 FROM readings
+                                WHERE sensor_id = ? AND timestamp = ?
+                                """,
+                                (sensor_id, timestamp),
+                            )
 
-                                        try:
-                                            parts = line.split(",")
-                                            if len(parts) < 2:
-                                                raise ValueError("Not enough values")
+                            if cursor.fetchone():
+                                continue
 
-                                            timestamp = parts[0]
-                                            temperature = float(parts[1])  # Assumes °C
-                                            unit = '°C'
-                                            valid = 1  # Assume all readings are valid if parsed correctly
+                            cursor.execute(
+                                """
+                                INSERT INTO readings (sensor_id, timestamp, temperature, unit, valid)
+                                VALUES (?, ?, ?, ?, ?)
+                                """,
+                                (sensor_id, timestamp, temperature, '°C', 1),
+                            )
+                            insert_count += 1
+                        except (ValueError, sqlite3.Error) as exc:
+                            print(f"[WARN] Skipped row {row}: {exc}")
+            except Exception as exc:
+                print(f"[ERROR] Failed to process {file_path}: {exc}")
+            finally:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
-                                            # Prevent duplicates
-                                            cursor.execute("""
-                                                SELECT 1 FROM readings
-                                                WHERE sensor_id = ? AND timestamp = ?
-                                            """, (sensor_id, timestamp))
+        conn.commit()
+        print(f"\n✅ {insert_count} new record(s) written to database.\n")
 
-                                            if not cursor.fetchone():
-                                                cursor.execute("""
-                                                    INSERT INTO readings (sensor_id, timestamp, temperature, unit, valid)
-                                                    VALUES (?, ?, ?, ?, ?)
-                                                """, (sensor_id, timestamp, temperature, unit, valid))
-                                                insert_count += 1
-                                                print(f"✅ INSERTED: [{sensor_id}] {timestamp} → {temperature}°C")
-                                            else:
-                                                print(f"⏭️ SKIPPED (Duplicate): [{sensor_id}] {timestamp}")
-                                        except ValueError:
-                                            print(f"[WARN] Malformed line skipped: {line}")
-                            except Exception as e:
-                                print(f"[ERROR] Failed to read temp file: {e}")
-                            finally:
-                                try:
-                                    os.remove(temp_path)
-                                    print(f"🧹 Deleted temp file: {temp_path}")
-                                except Exception:
-                                    print(f"[WARN] Failed to delete temp file {temp_path}")
-
-    conn.commit()
-    conn.close()
-    print(f"\n✅ {insert_count} new record(s) written to database.\n")
 
 def main_loop():
     while True:
@@ -106,6 +179,7 @@ def main_loop():
         read_sensor_data_and_store()
         print(f"⏳ Waiting {READ_INTERVAL_SECONDS} seconds before next sync...\n")
         time.sleep(READ_INTERVAL_SECONDS)
+
 
 if __name__ == "__main__":
     main_loop()

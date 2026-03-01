@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---------- charts ----------
-  let currentRange = '24H';
+  let currentRange = 'ALL';
   let currentTab = 'temperature'; // 'temperature' | 'humidity'
 
   // Create charts
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     },
     plugins: {
-      legend: { display: false }
+      legend: { display: true }
     }
   };
 
@@ -85,18 +85,28 @@ document.addEventListener('DOMContentLoaded', () => {
     options: baseOptions
   }) : null;
 
+  const palette = ['#2563eb', '#16a34a', '#dc2626', '#9333ea', '#f59e0b', '#0ea5e9', '#84cc16', '#f97316'];
+
   async function loadChart(type, range) {
     try {
-      const { labels = [], values = [] } = await fetchJSON(`/api/dashboard/chart?type=${encodeURIComponent(type)}&range=${encodeURIComponent(range)}`);
+      const { datasets = [] } = await fetchJSON(`/api/dashboard/chart?type=${encodeURIComponent(type)}&range=${encodeURIComponent(range)}`);
+
+      const chartDatasets = datasets.map((s, i) => ({
+        label: s.label || `Sensor ${s.sensor_id ?? i + 1}`,
+        data: (s.data || []).map(p => ({ x: new Date(p.x), y: p.y })),
+        borderColor: palette[i % palette.length],
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.2
+      }));
 
       if (type === 'temperature' && temperatureChart) {
-        temperatureChart.data.labels = labels.map((t) => new Date(t));
-        temperatureChart.data.datasets[0].data = values;
+        temperatureChart.data.datasets = chartDatasets;
         temperatureChart.update();
       }
       if (type === 'humidity' && humidityChart) {
-        humidityChart.data.labels = labels.map((t) => new Date(t));
-        humidityChart.data.datasets[0].data = values;
+        humidityChart.data.datasets = chartDatasets;
         humidityChart.update();
       }
     } catch (e) {
@@ -132,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Range controls
   $all('.range-filter').forEach(btn => {
     btn.addEventListener('click', () => {
-      const range = btn.getAttribute('data-range'); // 24H | 7D | 1M
+      const range = btn.getAttribute('data-range'); // ALL | 24H | 7D | 1M
       if (!range) return;
       currentRange = range;
 
